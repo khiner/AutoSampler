@@ -18,7 +18,7 @@ function bang() {
 	  break;
 	var sample_info = line.split('::');
 	var sample_path = sample_info[0];
-	outlet(0, "open", sample_path);
+	outlet(1, "open", sample_path);
 	sample_infos.push(sample_info);
   }
 
@@ -42,7 +42,7 @@ function bang() {
 	  var duration_samples = parseFloat(segment_sections[2]);
 	  var start_time_ms = samplesToMillis(start_time_samples, sample_rate);
 	  var duration_ms = samplesToMillis(duration_samples, sample_rate);
-	  outlet(0, "preload", note * MAX_SAMPLES_PER_NOTE + i,
+	  outlet(1, "preload", note * MAX_SAMPLES_PER_NOTE + i,
              sample_path, start_time_ms, start_time_ms + duration_ms);
 	}
   }
@@ -55,7 +55,7 @@ function bang() {
   //outlet(0, "preload", 500, "/Users/khiner/Development/aubio/python/scripts/Be I Do (Jameszoo Remix).mp3", 104867.120181, 105047.07483);
 
   var funbuff_ret = [];
-  funbuff_ret.push(1);
+  funbuff_ret.push(0);
   funbuff_ret.push("set");
   for (var key in sample_count_for_notes) {
 	var val = sample_count_for_notes[key];
@@ -64,5 +64,5 @@ function bang() {
   }
 
   outlet.apply(this, funbuff_ret);
-  //outlet(1, "set", 46, 2, 47, 1, 50, 1);
+  //outlet(0, "set", 46, 2, 47, 1, 50, 1);
 }
