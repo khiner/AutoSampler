@@ -2,14 +2,14 @@ inlets = 4;
 outlets = 3;
 
 /********INPUTS*****************
- * 0: note (int) OR bang (play)
+ * 0: note (int) OR bang (play) OR message (openSampleMap)
  * 1: loop type (int)
  * 2: current_sample (list)
  * 3: sample_selector (float)
 ********************************/
 
 /********OUTPUTS*****************
- * 0: sample_index (int) - sample to play *now*
+ * 0: output messages to sfplay
  * 1: next_playing_display (list) - binary list showing which sample index to show selected state for
  * 2: output messages to thispatcher
 ********************************/
@@ -35,6 +35,18 @@ function createAndFillArray(length, fillValue) {
   for (var i = 0; i < length; i++)
     array.push(fillValue);
   return array;
+}
+
+function samplesToMillis(samples, sample_rate) {
+  return (1000 / sample_rate) * samples;
+}
+
+function getSampleCount() {
+  return sample_count_for_note[curr_note];
+}
+
+function setSampleCountForNote(sample_count, note) {
+  sample_count_for_note[note] = sample_count;
 }
 
 function getSampleIndex() {
@@ -85,7 +97,7 @@ function findNextSampleIndex(is_new_note) {
 	return; // no samples enabled
 
   var prev_sample_index = getSampleIndex();
-  var sample_count = sample_count_for_note[curr_note];
+  var sample_count = getSampleCount();
 
   if (loop_type == RANDOM)
     setSampleIndex(Math.floor(Math.random() * sample_count));
@@ -100,7 +112,7 @@ function findNextSampleIndex(is_new_note) {
 }
 
 function showToggles() {
-  var sample_count = sample_count_for_note[curr_note];
+  var sample_count = getSampleCount();
 
   for (var sample_index = 0; sample_index < MAX_SAMPLES_PER_NOTE; sample_index++) {
 	var show_or_hide = (sample_index < sample_count) ? 'show' : 'hide';
@@ -148,7 +160,7 @@ function msg_int(arg) {
 function msg_float(arg) {
   if (loop_type == NO_LOOP || loop_type == REPEAT) {
 	var prev_sample_index = getSampleIndex();
-	setSampleIndex(Math.floor(arg * getSampleIndex() - 1));
+	setSampleIndex(Math.floor(arg * getSampleCount() - 1));
 	findNextSampleIndex(prev_sample_index != getSampleIndex());
   }
 }
@@ -156,21 +168,52 @@ function msg_float(arg) {
 function list() {
   var enabled_sample_array = arrayfromargs(messagename, arguments);
   setEnabledSampleMask(0);
-  for (var sample_index = 0; sample_index < sample_count_for_note[curr_note]; sample_index++)
+  for (var sample_index = 0; sample_index < getSampleCount(); sample_index++)
 	if (enabled_sample_array[sample_index] == 1)
 	  enableSample(sample_index);
 }
 
-function setSampleCounts(args) {
-  var interlaced_notes_and_sample_counts = arrayfromargs(messagename, arguments);
-
-  for (var i = 1; i < interlaced_notes_and_sample_counts.length; i += 2) {
-	var note = interlaced_notes_and_sample_counts[i];
-	var sample_count = interlaced_notes_and_sample_counts[i + 1];
-    sample_count_for_note[note] = sample_count;
-    for (var sample_index = 0; sample_index < sample_count; sample_index++) {
-	  post('enabling sample for note: ' + sample_index + ' ' + note);
-      enableSampleForNote(sample_index, note);
-    }
+function openSampleMap(sample_info_map_path) {
+  f = new File(sample_info_map_path, "read", "text");
+  
+  // open section - open all files in header
+  var sample_infos = [];
+  while (true) {
+	var line = f.readline();
+	if (line == '_')
+	  break;
+	var sample_info = line.split('::');
+	var sample_path = sample_info[0];
+	outlet(0, "open", sample_path);
+	sample_infos.push(sample_info);
   }
+
+  while (f.position != f.eof) {
+	var line = f.readline(10000);
+	var note_and_segments = line.split(':');
+	var note = parseInt(note_and_segments[0]);
+	var segments = note_and_segments[1].split('|').slice(0, MAX_SAMPLES_PER_NOTE);
+	setSampleCountForNote(segments.length, note);
+    for (var sample_index = 0; sample_index < segments.length; sample_index++)
+      enableSampleForNote(sample_index, note);
+
+    for (var i = 0; i < segments.length; i++) {
+	  var segment = segments[i];
+	  var segment_sections = segment.split(',');
+	  var sample_index = parseInt(segment_sections[0]);
+	  var sample_info = sample_infos[sample_index];
+	  var sample_path = sample_info[0];
+	  var sample_rate = sample_info[1];
+	  var start_time_samples = parseFloat(segment_sections[1]);
+	  var duration_samples = parseFloat(segment_sections[2]);
+	  var start_time_ms = samplesToMillis(start_time_samples, sample_rate);
+	  var duration_ms = samplesToMillis(duration_samples, sample_rate);
+	  outlet(0, "preload", note * MAX_SAMPLES_PER_NOTE + i,
+             sample_path, start_time_ms, start_time_ms + duration_ms);
+	}
+  }
+
+  for (var note = 0; note <= MAX_MIDI_NOTE_VALUE; note++)
+	if (sample_count_for_note[note] == null)
+	    setSampleCountForNote(0, note);
 }
