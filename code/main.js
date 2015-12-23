@@ -3,7 +3,7 @@ outlets = 3;
 
 /********INPUTS*****************
  * 0: note (int) OR bang (play) OR message (openSampleMap)
- * 1: loop type (int)
+ * 1: sample-choice type (int)
  * 2: current_sample (list)
  * 3: sample_selector (float)
 ********************************/
@@ -18,10 +18,9 @@ var MAX_SAMPLES_PER_NOTE = 24;
 var MAX_MIDI_NOTE_VALUE = 127;
 
 /*** LOOP MODES ***/
-var NO_LOOP = 0;
-var REPEAT = 1;
-var CYCLE = 2;
-var RANDOM = 3;
+var PICK = 0;
+var CYCLE = 1;
+var RANDOM = 2;
 
 var sample_count_for_note = [];
 var enabled_samples_for_note;
@@ -139,8 +138,7 @@ function loadbang() {
 }
 
 function bang() { // play
-  if (loop_type != NO_LOOP)
-    playNextSample(false);
+  playNextSample(false);
 }
 
 function msg_int(arg) {
@@ -153,20 +151,12 @@ function msg_int(arg) {
 	  showToggles();
 	playNextSample(true);
   } else if (inlet == 1) {
-	var prev_loop_type = loop_type;
 	loop_type = arg;
-	if (prev_loop_type == loop_type)
-	  return;
-	if (loop_type == REPEAT) {
-	  outlet(0, "loop", 1);
-	} else if (prev_loop_type == REPEAT) {
-	  outlet(0, "loop", 0);
-	}
   }
 }
 
 function msg_float(arg) {
-  if (loop_type == NO_LOOP || loop_type == REPEAT) {
+  if (loop_type == PICK || loop_type == REPEAT) {
 	var prev_sample_index = getSampleIndex();
 	setSampleIndex(Math.floor(arg * getSampleCount() - 1));
 	findNextSampleIndex(prev_sample_index != getSampleIndex());
