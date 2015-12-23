@@ -153,7 +153,15 @@ function msg_int(arg) {
 	  showToggles();
 	playNextSample(true);
   } else if (inlet == 1) {
+	var prev_loop_type = loop_type;
 	loop_type = arg;
+	if (prev_loop_type == loop_type)
+	  return;
+	if (loop_type == REPEAT) {
+	  outlet(0, "loop", 1);
+	} else if (prev_loop_type == REPEAT) {
+	  outlet(0, "loop", 0);
+	}
   }
 }
 
