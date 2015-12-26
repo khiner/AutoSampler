@@ -179,6 +179,7 @@ function msg_int(arg) {
 	loop_type = arg;
   } else if (inlet == 3) {
 	steal_samples = arg == 1 ? true : false;
+	showToggles();
   }
 }
 
