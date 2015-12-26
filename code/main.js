@@ -1,17 +1,18 @@
 inlets = 4;
-outlets = 3;
+outlets = 4;
 
 /********INPUTS*****************
  * 0: note (int) OR bang (play) OR message (openSampleMap)
  * 1: sample-choice type (int)
  * 2: current_sample (list)
- * 3: sample_selector (float)
+ * 3: sample_selector (float) OR steal_samples (int: 0 or 1)
 ********************************/
 
 /********OUTPUTS*****************
  * 0: output messages to sfplay
- * 1: next_playing_display (list) - binary list showing which sample index to show selected state for
- * 2: output messages to thispatcher
+ * 1: playback rate for sfplay
+ * 2: next_playing_display (list) - binary list showing which sample index to show selected state for
+ * 3: output messages to thispatcher
 ********************************/
 
 var MAX_SAMPLES_PER_NOTE = 24;
@@ -28,6 +29,8 @@ var curr_sample_index_for_note;
 var active_samples; // binary list of sample indices to display as up next
 var curr_note = 0;
 var loop_type = 0;
+var nearest_note_with_samples = [];
+var steal_samples = true;
 
 function createAndFillArray(length, fillValue) {
   var array = [];
@@ -40,8 +43,26 @@ function samplesToMillis(samples, sample_rate) {
   return (1000 / sample_rate) * samples;
 }
 
+// the played note may have no samples.
+// this function returns the nearest note with samples if the 'steal samples' toggle is checked
+// otherwise, it returns the acutall current played note (with no samples)
+function nearestNoteWithSamples(note) {
+  if (!steal_samples || sample_count_for_note[note] > 0)
+    return note;
+
+  return nearest_note_with_samples[note] != null ? nearest_note_with_samples[note] : note;
+}
+
+function currentNoteWithSamples() {
+  return nearestNoteWithSamples(curr_note);
+}
+
+function getSampleCountForNote(note) {
+  return sample_count_for_note[note];
+}
+
 function getSampleCount() {
-  return sample_count_for_note[curr_note];
+  return getSampleCountForNote(currentNoteWithSamples());
 }
 
 function setSampleCountForNote(sample_count, note) {
@@ -88,7 +109,7 @@ function outputActiveSamples() {
   if (sample_index >= 0 && sample_index < active_samples.length)
 	active_samples[sample_index] = 1;
 
-  outlet(1, active_samples);
+  outlet(2, active_samples);
 }
 
 function findNextSampleIndex(is_new_note) {
@@ -115,23 +136,27 @@ function showToggles() {
 
   for (var sample_index = 0; sample_index < MAX_SAMPLES_PER_NOTE; sample_index++) {
 	var show_or_hide = (sample_index < sample_count) ? 'show' : 'hide';
-	outlet(2, 'script', show_or_hide, 'sampLed' + (sample_index + 1));
-	outlet(2, 'script', show_or_hide, 'sampToggle' + (sample_index + 1));
+	outlet(3, 'script', show_or_hide, 'sampLed' + (sample_index + 1));
+	outlet(3, 'script', show_or_hide, 'sampToggle' + (sample_index + 1));
 	if (sample_index < sample_count)
-	  outlet(2, 'script', 'send', 'sampToggle' + (sample_index + 1), 'set', isSampleEnabled(sample_index) ? 1 : 0);
+	  outlet(3, 'script', 'send', 'sampToggle' + (sample_index + 1), 'set', isSampleEnabled(sample_index) ? 1 : 0);
   }
 }
 
 function playNextSample(is_new_note) {
   findNextSampleIndex(is_new_note);
-  if (isCurrentSampleEnabled())
-    outlet(0, MAX_SAMPLES_PER_NOTE * curr_note + getSampleIndex());
+  if (isCurrentSampleEnabled()) {
+	var corrected_curr_note = currentNoteWithSamples();
+	var sample_rate = corrected_curr_note != curr_note ? 1 + (curr_note - corrected_curr_note) / 12.0 : 1;
+	post(sample_rate);
+	outlet(1, sample_rate);
+    outlet(0, MAX_SAMPLES_PER_NOTE * corrected_curr_note + getSampleIndex());
+  }
 }
 
 /*** INPUT METHODS ***/
 
 function loadbang() {
-  post('calling loadbang');
   active_samples = createAndFillArray(MAX_SAMPLES_PER_NOTE, 0);
   curr_sample_index_for_note = createAndFillArray(MAX_MIDI_NOTE_VALUE, 0);
   enabled_samples_for_note = createAndFillArray(MAX_MIDI_NOTE_VALUE, 0);
@@ -152,6 +177,8 @@ function msg_int(arg) {
 	playNextSample(true);
   } else if (inlet == 1) {
 	loop_type = arg;
+  } else if (inlet == 3) {
+	steal_samples = arg == 1 ? true : false;
   }
 }
 
@@ -192,8 +219,6 @@ function openSampleMap(sample_info_map_path) {
 	var note = parseInt(note_and_segments[0]);
 	var segments = note_and_segments[1].split('|').slice(0, MAX_SAMPLES_PER_NOTE);
 	setSampleCountForNote(segments.length, note);
-    for (var sample_index = 0; sample_index < segments.length; sample_index++)
-      enableSampleForNote(sample_index, note);
 
     for (var i = 0; i < segments.length; i++) {
 	  var segment = segments[i];
@@ -212,6 +237,29 @@ function openSampleMap(sample_info_map_path) {
   }
 
   for (var note = 0; note <= MAX_MIDI_NOTE_VALUE; note++)
-	if (sample_count_for_note[note] == null)
+	if (getSampleCountForNote(note) == null)
 	    setSampleCountForNote(0, note);
+	
+  for (var note = 0; note <= MAX_MIDI_NOTE_VALUE; note++) {
+	if (getSampleCountForNote(note) == 0) {
+	  // find nearest note with samples
+	  for (var distance = 0;
+           note + distance <= MAX_MIDI_NOTE_VALUE ||
+           note - distance > 0;
+           distance++) {
+	    if (getSampleCountForNote(note - distance) > 0) {
+		  nearest_note_with_samples[note] = note - distance;
+		  break;
+		} else if (getSampleCountForNote(note + distance) > 0) {
+		  nearest_note_with_samples[note] = note + distance;
+		  break;
+		}
+	  }
+	}
+	var nearest_note = nearestNoteWithSamples(note);
+	var sample_count = getSampleCountForNote(nearest_note);
+	for (var sample_index = 0; sample_index < sample_count; sample_index++) {
+      enableSampleForNote(sample_index, note);
+    }
+  }
 }
