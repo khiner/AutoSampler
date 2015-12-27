@@ -1,17 +1,17 @@
 inlets = 4;
-outlets = 4;
+outlets = 5;
 
 /********INPUTS*****************
  * 0: note (int) OR bang (play) OR message (openSampleMap)
- * 1: sample-choice type (int)
- * 2: current_sample (list)
- * 3: sample_selector (float) OR steal_samples (int: 0 or 1)
+ * 1: sample-choice-type (int) OR sample-number (float)
+ * 2: current_sample (list) OR sample-level (float)
+ * 3: pick (float) OR steal_samples (int: 0 or 1)
 ********************************/
 
 /********OUTPUTS*****************
  * 0: output messages to sfplay
  * 1: playback rate for sfplay
- * 2: next_playing_display (list) - binary list showing which sample index to show selected state for
+ * 2: next_playing_display (list) - binary list showing which sample index to show selected state for OR output_level (float)
  * 3: output messages to thispatcher
 ********************************/
 
@@ -23,7 +23,9 @@ var PICK = 0;
 var CYCLE = 1;
 var RANDOM = 2;
 
+var sample_infos_for_note = [];
 var sample_count_for_note = [];
+var sample_index_for_cue = [];
 var enabled_samples_for_note;
 var curr_sample_index_for_note;
 var active_samples; // binary list of sample indices to display as up next
@@ -31,6 +33,7 @@ var curr_note = 0;
 var loop_type = 0;
 var nearest_note_with_samples = [];
 var steal_samples = true;
+var level_for_sample = [];
 
 function createAndFillArray(length, fillValue) {
   var array = [];
@@ -46,15 +49,15 @@ function samplesToMillis(samples, sample_rate) {
 // the played note may have no samples.
 // this function returns the nearest note with samples if the 'steal samples' toggle is checked
 // otherwise, it returns the acutall current played note (with no samples)
-function nearestNoteWithSamples(note) {
+function nearestNoteWithSamplesForNote(note) {
   if (!steal_samples || sample_count_for_note[note] > 0)
     return note;
 
   return nearest_note_with_samples[note] != null ? nearest_note_with_samples[note] : note;
 }
 
-function currentNoteWithSamples() {
-  return nearestNoteWithSamples(curr_note);
+function nearestNoteWithSamples() {
+  return nearestNoteWithSamplesForNote(curr_note);
 }
 
 function getSampleCountForNote(note) {
@@ -62,7 +65,7 @@ function getSampleCountForNote(note) {
 }
 
 function getSampleCount() {
-  return getSampleCountForNote(currentNoteWithSamples());
+  return getSampleCountForNote(nearestNoteWithSamples());
 }
 
 function setSampleCountForNote(sample_count, note) {
@@ -74,7 +77,9 @@ function getSampleIndex() {
 }
 
 function setSampleIndex(sample_index) {
+  outlet(4, level_for_sample[MAX_SAMPLES_PER_NOTE * curr_note + sample_index]);
   curr_sample_index_for_note[curr_note] = sample_index;
+  updateSampleUi();
 }
 
 function getEnabledSampleMask() {
@@ -94,27 +99,27 @@ function enableSample(sample_index) {
 }
 
 function isSampleEnabled(sample_index) {
-  return (getEnabledSampleMask() & (1 << sample_index)) != 0
+  return (getEnabledSampleMask() & (1 << sample_index)) != 0;
 }
 
 function isCurrentSampleEnabled() {
-  return isSampleEnabled(getSampleIndex())
+  return isSampleEnabled(getSampleIndex());
 }
 
 function outputActiveSamples() {
   for (var sample_index = 0; sample_index < active_samples.length; sample_index++)
-	active_samples[sample_index] = 0;
+  active_samples[sample_index] = 0;
 
   var sample_index = getSampleIndex();
   if (sample_index >= 0 && sample_index < active_samples.length)
-	active_samples[sample_index] = 1;
+  active_samples[sample_index] = 1;
 
   outlet(2, active_samples);
 }
 
 function findNextSampleIndex(is_new_note) {
   if (getEnabledSampleMask() == 0)
-	return; // no samples enabled
+  return; // no samples enabled
 
   var prev_sample_index = getSampleIndex();
   var sample_count = getSampleCount();
@@ -125,32 +130,41 @@ function findNextSampleIndex(is_new_note) {
     setSampleIndex((getSampleIndex() + 1) % sample_count)
 
   while (!isCurrentSampleEnabled())
-	setSampleIndex((getSampleIndex() + 1) % sample_count);
+  setSampleIndex((getSampleIndex() + 1) % sample_count);
 
   if (is_new_note || getSampleIndex() != prev_sample_index)
     outputActiveSamples();
 }
 
-function showToggles() {
+function updateSampleUiAndToggles() {
   var sample_count = getSampleCount();
 
   for (var sample_index = 0; sample_index < MAX_SAMPLES_PER_NOTE; sample_index++) {
-	var show_or_hide = (sample_index < sample_count) ? 'show' : 'hide';
-	outlet(3, 'script', show_or_hide, 'sampLed' + (sample_index + 1));
-	outlet(3, 'script', show_or_hide, 'sampToggle' + (sample_index + 1));
-	if (sample_index < sample_count)
-	  outlet(3, 'script', 'send', 'sampToggle' + (sample_index + 1), 'set', isSampleEnabled(sample_index) ? 1 : 0);
+  var show_or_hide = (sample_index < sample_count) ? 'show' : 'hide';
+  outlet(3, 'script', show_or_hide, 'sampLed' + (sample_index + 1));
+  outlet(3, 'script', show_or_hide, 'sampToggle' + (sample_index + 1));
+  if (sample_index < sample_count)
+    outlet(3, 'script', 'send', 'sampToggle' + (sample_index + 1), 'set', isSampleEnabled(sample_index) ? 1 : 0);
+  }
+  updateSampleUi();
+}
+
+function updateSampleUi() {
+  if (getSampleCount() == 0) {
+  outlet(3, 'script', 'hide', 'sampleLevel');
+  outlet(3, 'script', 'hide', 'sampleSelect');
+  } else {
+    outlet(3, 'script', 'send', 'sampleLevel', level_for_sample[MAX_SAMPLES_PER_NOTE * curr_note + getSampleIndex()]);
+    outlet(3, 'script', 'show', 'sampleLevel');
+    outlet(3, 'script', 'show', 'sampleSelect');
   }
 }
 
 function playNextSample(is_new_note) {
   findNextSampleIndex(is_new_note);
   if (isCurrentSampleEnabled()) {
-	var corrected_curr_note = currentNoteWithSamples();
-	var sample_rate = corrected_curr_note != curr_note ? 1 + (curr_note - corrected_curr_note) / 12.0 : 1;
-	post(sample_rate);
-	outlet(1, sample_rate);
-    outlet(0, MAX_SAMPLES_PER_NOTE * corrected_curr_note + getSampleIndex());
+  var corrected_curr_note = nearestNoteWithSamples();
+    outlet(0, MAX_SAMPLES_PER_NOTE * nearestNoteWithSamples() + getSampleIndex());
   }
 }
 
@@ -162,32 +176,55 @@ function loadbang() {
   enabled_samples_for_note = createAndFillArray(MAX_MIDI_NOTE_VALUE, 0);
 }
 
-function bang() { // play
-  playNextSample(false);
+function bang() {
+  if (inlet == 0) {
+    playNextSample(false);
+  } else if (inlet == 2) { // swap out sample for this bucket
+  var sample_infos = sample_infos_for_note[nearestNoteWithSamples()];
+  if (sample_infos) {
+    var cue_number = MAX_SAMPLES_PER_NOTE * nearestNoteWithSamples() + getSampleIndex();
+    sample_index_for_cue[cue_number] = (sample_index_for_cue[cue_number] + 1) % getSampleCount();
+    var sample_info = sample_infos[sample_index_for_cue[cue_number]];
+    if (sample_info) {
+      //outlet(0, 'clear', cue_number);
+        outlet(0, 'preload', cue_number, sample_info.sample_path, sample_info.start_time_ms, sample_info.start_time_ms + sample_info.duration_ms);
+      }
+    }
+  }
 }
 
 function msg_int(arg) {
   if (inlet == 0) {
-	if (arg == 0)
-	  return;
-	var prev_note = curr_note;
-	curr_note = arg;
-	if (prev_note != curr_note)
-	  showToggles();
-	playNextSample(true);
+  if (arg == 0)
+    return;
+  var prev_note = curr_note;
+  curr_note = arg;
+  if (prev_note != curr_note) {
+    var sample_rate = nearestNoteWithSamples() != curr_note ? 1 + (curr_note - nearestNoteWithSamples()) / 12.0 : 1;
+    outlet(1, sample_rate);
+    updateSampleUiAndToggles();
+  }
+  playNextSample(true);
   } else if (inlet == 1) {
-	loop_type = arg;
+  loop_type = arg;
   } else if (inlet == 3) {
-	steal_samples = arg == 1 ? true : false;
-	showToggles();
+  steal_samples = arg == 1 ? true : false;
+  if (sample_count_for_note[curr_note] == 0) {
+      updateSampleUiAndToggles();
+  }
   }
 }
 
 function msg_float(arg) {
-  if (loop_type == PICK || loop_type == REPEAT) {
-	var prev_sample_index = getSampleIndex();
-	setSampleIndex(Math.floor(arg * getSampleCount() - 1));
-	findNextSampleIndex(prev_sample_index != getSampleIndex());
+  if (inlet == 1) { // sample-level
+  level_for_sample[MAX_SAMPLES_PER_NOTE * curr_note + getSampleIndex()] = arg;
+  outlet(4, arg);
+  } else if (inlet == 3) { // pick
+    if (loop_type == PICK || loop_type == REPEAT) {
+      var prev_sample_index = getSampleIndex();
+    setSampleIndex(Math.floor(arg * (getSampleCount() - 1)));
+    findNextSampleIndex(prev_sample_index != getSampleIndex());
+    }
   }
 }
 
@@ -195,8 +232,8 @@ function list() {
   var enabled_sample_array = arrayfromargs(messagename, arguments);
   setEnabledSampleMask(0);
   for (var sample_index = 0; sample_index < getSampleCount(); sample_index++)
-	if (enabled_sample_array[sample_index] == 1)
-	  enableSample(sample_index);
+  if (enabled_sample_array[sample_index] == 1)
+    enableSample(sample_index);
 }
 
 function openSampleMap(sample_info_map_path) {
@@ -205,61 +242,68 @@ function openSampleMap(sample_info_map_path) {
   // open section - open all files in header
   var sample_infos = [];
   while (true) {
-	var line = f.readline();
-	if (line == '_')
-	  break;
-	var sample_info = line.split('::');
-	var sample_path = sample_info[0];
-	outlet(0, "open", sample_path);
-	sample_infos.push(sample_info);
+  var line = f.readline();
+  if (line == '_')
+    break;
+  var sample_info = line.split('::');
+  var sample_path = sample_info[0];
+  outlet(0, "open", sample_path);
+  sample_infos.push(sample_info);
   }
 
   while (f.position != f.eof) {
-	var line = f.readline(10000);
-	var note_and_segments = line.split(':');
-	var note = parseInt(note_and_segments[0]);
-	var segments = note_and_segments[1].split('|').slice(0, MAX_SAMPLES_PER_NOTE);
-	setSampleCountForNote(segments.length, note);
+  var line = f.readline(10000);
+  var note_and_segments = line.split(':');
+  var note = parseInt(note_and_segments[0]);
+  var segments = note_and_segments[1].split('|')
+  setSampleCountForNote(segments.length, note);
+    sample_infos_for_note[note] = [];
 
     for (var i = 0; i < segments.length; i++) {
-	  var segment = segments[i];
-	  var segment_sections = segment.split(',');
-	  var sample_index = parseInt(segment_sections[0]);
-	  var sample_info = sample_infos[sample_index];
-	  var sample_path = sample_info[0];
-	  var sample_rate = sample_info[1];
-	  var start_time_samples = parseFloat(segment_sections[1]);
-	  var duration_samples = parseFloat(segment_sections[2]);
-	  var start_time_ms = samplesToMillis(start_time_samples, sample_rate);
-	  var duration_ms = samplesToMillis(duration_samples, sample_rate);
-	  outlet(0, "preload", note * MAX_SAMPLES_PER_NOTE + i,
-             sample_path, start_time_ms, start_time_ms + duration_ms);
-	}
+    var segment = segments[i];
+    var segment_sections = segment.split(',');
+    var sample_index = parseInt(segment_sections[0]);
+    var sample_info = sample_infos[sample_index];
+    var sample_rate = sample_info[1];
+
+    var sample_info_obj = {};
+      sample_info_obj.sample_path = sample_info[0];
+    sample_info_obj.start_time_ms = samplesToMillis(parseFloat(segment_sections[1]), sample_rate);
+    sample_info_obj.duration_ms = samplesToMillis(parseFloat(segment_sections[2]), sample_rate);
+      sample_infos_for_note[note][i] = sample_info_obj;
+
+      if (i < MAX_SAMPLES_PER_NOTE) {
+        var cue_number = note * MAX_SAMPLES_PER_NOTE + i;
+      level_for_sample[cue_number] = 0;
+      sample_index_for_cue[cue_number] = i;
+      outlet(0, 'preload', cue_number, sample_info_obj.sample_path, sample_info_obj.start_time_ms, sample_info_obj.start_time_ms + sample_info_obj.duration_ms);
+    }
+  }
   }
 
   for (var note = 0; note <= MAX_MIDI_NOTE_VALUE; note++)
-	if (getSampleCountForNote(note) == null)
-	    setSampleCountForNote(0, note);
-	
+  if (getSampleCountForNote(note) == null)
+      setSampleCountForNote(0, note);
+  
   for (var note = 0; note <= MAX_MIDI_NOTE_VALUE; note++) {
-	if (getSampleCountForNote(note) == 0) {
-	  // find nearest note with samples
-	  for (var distance = 0;
+  if (getSampleCountForNote(note) == 0) {
+    // find nearest note with samples
+    for (var distance = 0;
            note + distance <= MAX_MIDI_NOTE_VALUE ||
            note - distance > 0;
            distance++) {
-	    if (getSampleCountForNote(note - distance) > 0) {
-		  nearest_note_with_samples[note] = note - distance;
-		  break;
-		} else if (getSampleCountForNote(note + distance) > 0) {
-		  nearest_note_with_samples[note] = note + distance;
-		  break;
-		}
-	  }
-	}
-	var nearest_note = nearestNoteWithSamples(note);
-	var sample_count = getSampleCountForNote(nearest_note);
-	for (var sample_index = 0; sample_index < sample_count; sample_index++) {
+      if (getSampleCountForNote(note - distance) > 0) {
+      nearest_note_with_samples[note] = note - distance;
+      break;
+    } else if (getSampleCountForNote(note + distance) > 0) {
+      nearest_note_with_samples[note] = note + distance;
+      break;
+    }
+    }
+  }
+  var nearest_note = nearestNoteWithSamplesForNote(note);
+  var sample_count = getSampleCountForNote(nearest_note);
+  for (var sample_index = 0; sample_index < sample_count; sample_index++) {
       enableSampleForNote(sample_index, note);
     }
   }
