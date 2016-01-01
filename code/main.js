@@ -15,7 +15,7 @@ outlets = 5;
  * 3: output messages to thispatcher
 ********************************/
 
-var MAX_SAMPLES_PER_NOTE = 24;
+var MAX_SAMPLES_PER_NOTE = 16;
 var MAX_MIDI_NOTE_VALUE = 127;
 
 /*** LOOP MODES ***/
@@ -222,7 +222,7 @@ function msg_float(arg) {
   } else if (inlet == 3) { // pick
     if (loop_type == PICK || loop_type == REPEAT) {
       var prev_sample_index = getSampleIndex();
-    setSampleIndex(Math.floor(arg * (getSampleCount() - 1)));
+    setSampleIndex(Math.floor(arg * (Math.min(MAX_SAMPLES_PER_NOTE, getSampleCount()) - 1)));
     findNextSampleIndex(prev_sample_index != getSampleIndex());
     }
   }
