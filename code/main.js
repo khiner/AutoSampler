@@ -1,4 +1,4 @@
-inlets = 4;
+	inlets = 4;
 outlets = 5;
 
 /********INPUTS*****************
@@ -25,6 +25,7 @@ var CYCLE_X = 1;
 var CYCLE_Y = 2;
 var RANDOM = 3;
 
+var quantized = false;
 var sample_infos_for_note = [];
 var sample_count_for_note = [];
 var sample_index_for_cue = [];
@@ -212,9 +213,12 @@ function msg_int(arg) {
 	  outlet(1, sample_rate);
 	  updateSampleUiAndToggles();
 	}
-	playNextSample(true);
+	if (!quantized)
+	  playNextSample(true);
   } else if (inlet == 1) {
 	loop_type = arg;
+  } else if (inlet == 2) {
+	quantized = arg > 1; // 0 == no retrigger, 1 == EOS, 2-N == quantized
   } else if (inlet == 3) {
 	steal_samples = arg == 1 ? true : false;
 	if (sample_count_for_note[curr_note] == 0) {
