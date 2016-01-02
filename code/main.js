@@ -160,13 +160,13 @@ function updateSampleUiAndToggles() {
 function updateSampleUi() {
   if (!getSampleCount() || curr_note == 0) {
 	outlet(3, 'script', 'hide', 'sampleLevel');
-	outlet(3, 'script', 'hide', 'nextSampleButton');
-	outlet(3, 'script', 'hide', 'nextSampleLabel');
+	outlet(3, 'script', 'hide', 'browseSample');
+	outlet(3, 'script', 'hide', 'browseSampleLabel');
   } else {
     outlet(3, 'script', 'send', 'sampleLevel', level_for_sample[MAX_SAMPLES_PER_NOTE * curr_note + getSampleIndex()]);
     outlet(3, 'script', 'show', 'sampleLevel');
-    outlet(3, 'script', 'show', 'nextSampleButton');
-    outlet(3, 'script', 'show', 'nextSampleLabel');
+    outlet(3, 'script', 'show', 'browseSample');
+    outlet(3, 'script', 'show', 'browseSampleLabel');
   }
 }
 
@@ -178,6 +178,10 @@ function playNextSample() {
   }
 }
 
+function mod(n, m) {
+  return ((n % m) + m) % m;
+}
+
 /*** INPUT METHODS ***/
 
 function loadbang() {
@@ -186,20 +190,29 @@ function loadbang() {
   enabled_samples_for_note = createAndFillArray(MAX_MIDI_NOTE_VALUE, 0);
 }
 
+function incrementSample(increment) {
+  var sample_infos = sample_infos_for_note[nearestNoteWithSamples()];
+  if (sample_infos) {
+	var cue_number = MAX_SAMPLES_PER_NOTE * nearestNoteWithSamples() + getSampleIndex();
+	sample_index_for_cue[cue_number] = mod(sample_index_for_cue[cue_number] + increment, getSampleCount());
+	var sample_info = sample_infos[sample_index_for_cue[cue_number]];
+	if (sample_info) {
+      outlet(0, 'preload', cue_number, sample_info.sample_path, sample_info.start_time_ms, sample_info.start_time_ms + sample_info.duration_ms);
+    }
+  }
+}
+
+function left() {
+  incrementSample(-1);
+}
+
+function right() {
+  incrementSample(1);
+}
+
 function bang() {
   if (inlet == 0) {
     playNextSample();
-  } else if (inlet == 2) { // swap out sample for this bucket
-	var sample_infos = sample_infos_for_note[nearestNoteWithSamples()];
-	if (sample_infos) {
-	  var cue_number = MAX_SAMPLES_PER_NOTE * nearestNoteWithSamples() + getSampleIndex();
-	  sample_index_for_cue[cue_number] = (sample_index_for_cue[cue_number] + 1) % getSampleCount();
-	  var sample_info = sample_infos[sample_index_for_cue[cue_number]];
-	  if (sample_info) {
-	    //outlet(0, 'clear', cue_number);
-        outlet(0, 'preload', cue_number, sample_info.sample_path, sample_info.start_time_ms, sample_info.start_time_ms + sample_info.duration_ms);
-      }
-    }
   }
 }
 
