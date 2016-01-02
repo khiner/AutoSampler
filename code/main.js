@@ -158,13 +158,15 @@ function updateSampleUiAndToggles() {
 }
 
 function updateSampleUi() {
-  if (getSampleCount() == 0) {
+  if (!getSampleCount() || curr_note == 0) {
 	outlet(3, 'script', 'hide', 'sampleLevel');
-	outlet(3, 'script', 'hide', 'sampleSelect');
+	outlet(3, 'script', 'hide', 'nextSampleButton');
+	outlet(3, 'script', 'hide', 'nextSampleLabel');
   } else {
     outlet(3, 'script', 'send', 'sampleLevel', level_for_sample[MAX_SAMPLES_PER_NOTE * curr_note + getSampleIndex()]);
     outlet(3, 'script', 'show', 'sampleLevel');
-    outlet(3, 'script', 'show', 'sampleSelect');
+    outlet(3, 'script', 'show', 'nextSampleButton');
+    outlet(3, 'script', 'show', 'nextSampleLabel');
   }
 }
 
