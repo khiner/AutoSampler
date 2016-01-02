@@ -120,7 +120,7 @@ function outputActiveSamples() {
   outlet(2, active_samples);
 }
 
-function findNextSampleIndex(is_new_note) {
+function findNextSampleIndex() {
   if (getEnabledSampleMask() == 0)
 	return; // no samples enabled
 
@@ -141,8 +141,7 @@ function findNextSampleIndex(is_new_note) {
   while (!isCurrentSampleEnabled())
 	setSampleIndex((getSampleIndex() + 1) % sample_count);
 
-  if (is_new_note || getSampleIndex() != prev_sample_index)
-    outputActiveSamples();
+  outputActiveSamples();
 }
 
 function updateSampleUiAndToggles() {
@@ -169,8 +168,8 @@ function updateSampleUi() {
   }
 }
 
-function playNextSample(is_new_note) {
-  findNextSampleIndex(is_new_note);
+function playNextSample() {
+  findNextSampleIndex();
   if (isCurrentSampleEnabled()) {
 	var corrected_curr_note = nearestNoteWithSamples();
     outlet(0, MAX_SAMPLES_PER_NOTE * nearestNoteWithSamples() + getSampleIndex());
@@ -187,7 +186,7 @@ function loadbang() {
 
 function bang() {
   if (inlet == 0) {
-    playNextSample(false);
+    playNextSample();
   } else if (inlet == 2) { // swap out sample for this bucket
 	var sample_infos = sample_infos_for_note[nearestNoteWithSamples()];
 	if (sample_infos) {
@@ -214,7 +213,7 @@ function msg_int(arg) {
 	  updateSampleUiAndToggles();
 	}
 	if (!quantized)
-	  playNextSample(true);
+	  playNextSample();
   } else if (inlet == 1) {
 	loop_type = arg;
   } else if (inlet == 2) {
@@ -233,9 +232,8 @@ function msg_float(arg) {
 	outlet(4, arg);
   } else if (inlet == 3) { // pick
     if (loop_type == PICK || loop_type == REPEAT) {
-      var prev_sample_index = getSampleIndex();
 	  setSampleIndex(Math.floor(arg * (Math.min(MAX_SAMPLES_PER_NOTE, getSampleCount()) - 1)));
-	  findNextSampleIndex(prev_sample_index != getSampleIndex());
+	  findNextSampleIndex();
     }
   }
 }
