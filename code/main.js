@@ -139,19 +139,23 @@ function findNextSample() {
   var prev_sample_offset = getSampleOffset();
   var sample_count = getSampleCount();
 
-  if (loop_type == RANDOM)
+  if (loop_type == RANDOM) {
     setSampleOffset(Math.floor(Math.random() * sample_count));
-  else if (loop_type == CYCLE_X || (loop_type == CYCLE_Y && sample_count <= SAMPLE_ROW_SIZE))
+    while (!isCurrentSampleEnabled())
+	  setSampleOffset((getSampleOffset() + 1) % sample_count);
+  } else if (loop_type == CYCLE_X || (loop_type == CYCLE_Y && sample_count <= SAMPLE_ROW_SIZE))
     setSampleOffset((prev_sample_offset + 1) % Math.min(sample_count, MAX_SAMPLES_PER_NOTE));
   else if (loop_type == CYCLE_Y) {
 	var next_sample_offset = prev_sample_offset + SAMPLE_ROW_SIZE;
 	if (next_sample_offset >= Math.min(sample_count, MAX_SAMPLES_PER_NOTE))
 	  next_sample_offset = ((next_sample_offset % SAMPLE_ROW_SIZE) + 1) % Math.min(sample_count, SAMPLE_ROW_SIZE);
     setSampleOffset(next_sample_offset);
+  } else if (!isCurrentSampleEnabled()) {
+    setSampleOffset((getSampleOffset() + 1) % sample_count);
   }
 
   while (!isCurrentSampleEnabled())
-	setSampleOffset((getSampleOffset() + 1) % sample_count);
+	findNextSample();
 
   outputActiveSamples();
 }
