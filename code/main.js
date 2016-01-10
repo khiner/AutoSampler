@@ -1,5 +1,5 @@
 inlets = 5;
-outlets = 5;
+outlets = 6;
 
 /********INPUTS*****************
  * 0: note (int) OR bang (play) OR message (openSampleMap)
@@ -14,6 +14,8 @@ outlets = 5;
  * 1: playback rate for sfplay
  * 2: next_playing_display (list) - binary list showing which sample index to show selected state for OR output_level (float)
  * 3: output messages to thispatcher
+ * 4: level (float)
+ * 5: sample_offset_label (string)
 ********************************/
 
 var SAMPLE_ROW_SIZE = 4;
@@ -126,6 +128,26 @@ function isCurrentSampleEnabled() {
   return isSampleEnabled(getSampleOffset());
 }
 
+function outputSampleLabel(cue_number) {
+  outlet(5, '' + (sample_offset_for_cue[cue_number] + 1) + ' of ' + getSampleCount());
+}
+
+function loadSampleForCue(cue_number, sample_offset) {
+  var note = nearestNoteWithSamples();
+  var sample_infos = sample_infos_for_note[note];
+  if (sample_infos) {
+    sample_offset_for_cue[cue_number] = sample_offset;
+    var sample_info = sample_infos[sample_offset_for_cue[cue_number]];
+    if (sample_info) {
+      outlet(0, 'preload', cue_number, sample_info.sample_path, sample_info.start_time_ms, sample_info.start_time_ms + sample_info.duration_ms, 1);
+      var curr_cue_number = getSampleIndexForNote(note);
+      if (cue_number === curr_cue_number) {
+	    outputSampleLabel(cue_number);
+      }
+    }
+  }
+}
+
 function outputActiveSamples() {
   for (var sample_offset = 0; sample_offset < active_samples.length; sample_offset++)
 	active_samples[sample_offset] = 0;
@@ -135,6 +157,7 @@ function outputActiveSamples() {
 	active_samples[sample_offset] = 1;
 
   outlet(2, active_samples);
+  outputSampleLabel(getSampleIndexForNote(nearestNoteWithSamples()));
 }
 
 function findNextSample() {
@@ -205,15 +228,8 @@ function updateSampleUiAndToggles() {
 }
 
 function incrementSample(increment) {
-  var sample_infos = sample_infos_for_note[nearestNoteWithSamples()];
-  if (sample_infos) {
-	var cue_number = getSampleIndexForNote(nearestNoteWithSamples());
-	sample_offset_for_cue[cue_number] = mod(sample_offset_for_cue[cue_number] + increment, getSampleCount());
-	var sample_info = sample_infos[sample_offset_for_cue[cue_number]];
-	if (sample_info) {
-      outlet(0, 'preload', cue_number, sample_info.sample_path, sample_info.start_time_ms, sample_info.start_time_ms + sample_info.duration_ms, 1);
-    }
-  }
+  var cue_number = getSampleIndexForNote(nearestNoteWithSamples());
+  loadSampleForCue(cue_number, mod(sample_offset_for_cue[cue_number] + increment, getSampleCount()));
 }
 
 function playNextSample() {
@@ -257,22 +273,13 @@ function bang() {
   if (inlet == 0) {
     playNextSample();
   } else if (inlet == 1) {
+	var sample_count = getSampleCount();
+	var all_indices = [];
+	for (var i = 0; i < sample_count; i++) all_indices.push(i);
+	shuffle(all_indices);
 	var note = nearestNoteWithSamples();
-	var sample_infos = sample_infos_for_note[note];
-    if (sample_infos) {
-	  var sample_count = getSampleCount();
-	  var all_indices = [];
-	  for (var i = 0; i < sample_count; i++) all_indices.push(i);
-	  shuffle(all_indices);
-	  for (var sample_offset = 0; sample_offset < Math.min(sample_count, MAX_SAMPLES_PER_NOTE); sample_offset++) {
-		var cue_number = MAX_SAMPLES_PER_NOTE * note + sample_offset;
-	    sample_offset_for_cue[cue_number] = all_indices[sample_offset];
-	    post(sample_offset_for_cue[cue_number]);
-	    var sample_info = sample_infos[sample_offset_for_cue[cue_number]];
-	    if (sample_info) {
-          outlet(0, 'preload', cue_number, sample_info.sample_path, sample_info.start_time_ms, sample_info.start_time_ms + sample_info.duration_ms, 1);
-        }
-	  }
+	for (var sample_offset = 0; sample_offset < Math.min(sample_count, MAX_SAMPLES_PER_NOTE); sample_offset++) {
+	  loadSampleForCue(MAX_SAMPLES_PER_NOTE * note + sample_offset, all_indices[sample_offset]);
     }
   } else if (inlet == 2 || inlet == 3) {
 	// divide playback rate
