@@ -48,6 +48,11 @@ function createAndFillArray(length, fillValue) {
   return array;
 }
 
+function shuffle(a) {
+  for (var j, x, i = a.length; i; j = Math.floor(Math.random() * i), x = a[--i], a[i] = a[j], a[j] = x);
+  return a;
+}
+
 function samplesToMillis(samples, sample_rate) {
   return (1000.0 / sample_rate) * samples;
 }
@@ -251,6 +256,24 @@ function right() {
 function bang() {
   if (inlet == 0) {
     playNextSample();
+  } else if (inlet == 1) {
+	var note = nearestNoteWithSamples();
+	var sample_infos = sample_infos_for_note[note];
+    if (sample_infos) {
+	  var sample_count = getSampleCount();
+	  var all_indices = [];
+	  for (var i = 0; i < sample_count; i++) all_indices.push(i);
+	  shuffle(all_indices);
+	  for (var sample_offset = 0; sample_offset < Math.min(sample_count, MAX_SAMPLES_PER_NOTE); sample_offset++) {
+		var cue_number = MAX_SAMPLES_PER_NOTE * note + sample_offset;
+	    sample_offset_for_cue[cue_number] = all_indices[sample_offset];
+	    post(sample_offset_for_cue[cue_number]);
+	    var sample_info = sample_infos[sample_offset_for_cue[cue_number]];
+	    if (sample_info) {
+          outlet(0, 'preload', cue_number, sample_info.sample_path, sample_info.start_time_ms, sample_info.start_time_ms + sample_info.duration_ms, 1);
+        }
+	  }
+    }
   } else if (inlet == 2 || inlet == 3) {
 	// divide playback rate
 	var sample_index = getSampleIndex();
