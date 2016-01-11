@@ -139,7 +139,7 @@ function loadSampleForCue(cue_number, sample_offset) {
     sample_offset_for_cue[cue_number] = sample_offset;
     var sample_info = sample_infos[sample_offset_for_cue[cue_number]];
     if (sample_info) {
-      outlet(0, 'preload', cue_number, sample_info.sample_path, sample_info.start_time_ms, sample_info.start_time_ms + sample_info.duration_ms, 1);
+      outlet(0, 'preload', cue_number, sample_info.sample_path, sample_info.start_time_ms, sample_info.start_time_ms + sample_info.duration_ms);
       var curr_cue_number = getSampleIndexForNote(note);
       if (cue_number === curr_cue_number) {
 	    outputSampleLabel(cue_number);
@@ -374,7 +374,7 @@ function openSampleMap(sample_info_map_path) {
 	    level_for_sample[cue_number] = 0;
 	    playback_speed_for_sample[cue_number] = 1;
 	    sample_offset_for_cue[cue_number] = i;
-	    outlet(0, 'preload', cue_number, sample_info_obj.sample_path, sample_info_obj.start_time_ms, sample_info_obj.start_time_ms + sample_info_obj.duration_ms, 1);
+	    outlet(0, 'preload', cue_number, sample_info_obj.sample_path, sample_info_obj.start_time_ms, sample_info_obj.start_time_ms + sample_info_obj.duration_ms);
 	  }
 	}
   }
