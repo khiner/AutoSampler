@@ -1,5 +1,5 @@
 inlets = 5;
-outlets = 6;
+outlets = 7;
 
 /********INPUTS*****************
  * 0: note (int) OR bang (play) OR message (openSampleMap)
@@ -15,7 +15,8 @@ outlets = 6;
  * 2: next_playing_display (list) - binary list showing which sample index to show selected state for OR output_level (float)
  * 3: output messages to thispatcher
  * 4: level (float)
- * 5: sample_offset_label (string)
+ * 5: level_change for display (float)
+ * 6: sample_offset_label (string)
 ********************************/
 
 var SAMPLE_ROW_SIZE = 4;
@@ -100,7 +101,7 @@ function getSampleIndex() {
 function setSampleOffset(sample_offset) {
   curr_sample_offset_for_note[curr_note] = sample_offset;
   var sample_index = getSampleIndex();
-  outlet(4, level_for_sample[sample_index]);
+  outlet(5, level_for_sample[sample_index]);
   updateSampleUi();
 }
 
@@ -129,7 +130,7 @@ function isCurrentSampleEnabled() {
 }
 
 function outputSampleLabel(cue_number) {
-  outlet(5, '' + (sample_offset_for_cue[cue_number] + 1) + ' of ' + getSampleCount());
+  outlet(6, '' + (sample_offset_for_cue[cue_number] + 1) + ' of ' + getSampleCount());
 }
 
 function loadSampleForCue(cue_number, sample_offset) {
@@ -243,6 +244,8 @@ function playNextSample() {
 	  //var now = new Date().getTime();
       //while(new Date().getTime() < now + 100) { /* do nothing */ } 
     }
+    var sample_index = getSampleIndex();
+    outlet(4, level_for_sample[sample_index]);
 	outlet(1, playback_speed);
     outlet(0, getSampleIndexForNote(nearestNoteWithSamples()));
    	prev_playback_speed = playback_speed;
