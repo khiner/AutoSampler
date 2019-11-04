@@ -8,4 +8,4 @@ _Note: The process of making the sample-map file is sketchy.  Eventually I'd lik
 
 ![](/screenshot.png?raw=true)
 
-[Read more about it and watch a demo here!](http://karlhiner.com/music_generation/autosampler/)
+[Read more about it and watch a demo here!](https://karlhiner.com/music_generation/auto_sampler/)
